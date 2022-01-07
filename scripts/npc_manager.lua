@@ -69,8 +69,5 @@ function insertNpcPortraits(msg, sMode)
                 end
             end
         end
-        if not (gmid == nil) then
-            msg.sender = gmid
-        end
     end
 end
