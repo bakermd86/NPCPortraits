@@ -2,26 +2,97 @@ function onInit()
     Interface.onDesktopInit = onDesktopInit;
 end
 
+local _npcNamesToPortraitMap = {};
+local _charsheetNamesToPortraitMap = {};
+
 function onDesktopInit()
     if User.isLocal() or User.isHost() then
         ChatManager.registerDeliverMessageCallback(insertNpcPortraits)
+        -- Call change handler for all existing NPCs and charsheets at startup to create the dummy portraits (for NPCs) and map the names (for both)
         for _, npc_node in pairs(DB.getChildren("npc")) do
-            createDummyPortrait(npc_node, DB.getValue(npc_node, "token"))
-            DB.addHandler(npc_node.getNodeName()..".token", "onUpdate", handleTokenChanged)
+            handleNPCAdded(npc_node.getParent(), npc_node)
         end
+        for _, pc_node in pairs(DB.getChildren("charsheet")) do
+            handleCharsheetAdded(pc_node.getParent(), pc_node)
+        end
+        -- Add DB onChildAdded handlers
+        DB.addHandler(".npc", "onChildAdded", handleNPCAdded)
+        DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
     end
-    DB.addHandler(".npc", "onChildAdded", handleNPCAdded)
 end
 
 function handleNPCAdded(nodeParent, nodeChildAdded)
-    createDummyPortrait(nodeChildAdded, DB.getValue(nodeChildAdded, "token"))
+    DB.addHandler(nodeChildAdded.getNodeName()..".name", "onUpdate", handleNPCNameChanged)
     DB.addHandler(nodeChildAdded.getNodeName()..".token", "onUpdate", handleTokenChanged)
+    DB.addHandler(nodeChildAdded.getNodeName(), "onDelete", removeNPCNameMapping)
+    createDummyPortrait(nodeChildAdded, DB.getValue(nodeChildAdded, "token"))
+    local name = DB.getValue(nodeChildAdded, "name", "")
+    if not (name == "") then
+        addNPCNameMapping(nodeChildAdded, name)
+    end
+end
+
+function handleCharsheetAdded(nodeParent, nodeChildAdded)
+    DB.addHandler(nodeChildAdded.getNodeName()..".name", "onUpdate", handleCharsheetNameChanged)
+    DB.addHandler(nodeChildAdded.getNodeName(), "onDelete", removeCharsheetNameMapping)
+    local name = DB.getValue(nodeChildAdded, "name", "")
+    if not (name == "") then
+        addCharsheetNameMapping(nodeChildAdded, name)
+    end
+end
+function handleNPCNameChanged(nameNode)
+    local npc_node = nameNode.getParent()
+    local npc_name = nameNode.getValue()
+    removeNPCNameMapping(npc_node)
+    addNPCNameMapping(npc_node, npc_name)
+end
+
+function handleCharsheetNameChanged(nameNode)
+    local charsheet_node = nameNode.getParent()
+    local pc_name = nameNode.getValue()
+    removeCharsheetNameMapping(charsheet_node)
+    addCharsheetNameMapping(charsheet_node, pc_name)
+end
+
+function removeNPCNameMapping(npc_node)
+    removeNameMapping(_npcNamesToPortraitMap, npc_node)
+end
+
+function removeCharsheetNameMapping(charsheet_node)
+    removeNameMapping(_charsheetNamesToPortraitMap, charsheet_node)
+end
+
+function removeNameMapping(nameMap, mappedNode)
+    for name, node in pairs(nameMap) do
+        if node == mappedNode then
+            nameMap[name] = nil
+            break
+        end
+    end
+end
+
+function addNPCNameMapping(npc_node, npc_name)
+    _npcNamesToPortraitMap[npc_name] = npc_node
+end
+
+function addCharsheetNameMapping(charsheet_node, pc_name)
+    _charsheetNamesToPortraitMap[pc_name] = charsheet_node
+end
+
+
+function getNPCByName(name)
+    return _npcNamesToPortraitMap[name]
+end
+
+function getCharsheetByName(name)
+    return _charsheetNamesToPortraitMap[name]
 end
 
 function handleTokenChanged(tokenNode)
     createDummyPortrait(tokenNode.getParent(), DB.getValue(tokenNode, ""))
 end
 
+-- CampaignDataManager.setCharPortrait is the only way I have found to generate a portrait set. So a dummy charsheet has to be created
 function createDummyPortrait(npc_node, tokenStr)
     if (tokenStr or "") ~= "" then
         local npc_ident = formatDynamicPortraitName(npc_node)
@@ -29,24 +100,13 @@ function createDummyPortrait(npc_node, tokenStr)
         if not (pcall(CampaignDataManager.setCharPortrait, dummy_node, tokenStr)) then
             Debug.chat("Bad token found in NPC " .. DB.getValue(npc_node, "name") .. " with token path: " .. tokenStr)
         end
+        -- Fortunately, portraits associated with deleted charsheets are only cleaned up at exit. So the dummy charsheet can be deleted here and the portrait will still work
         DB.deleteNode(dummy_node)
     end
 end
 
 function formatDynamicPortraitName(npc_node)
     return "dummy_portrait_".. npc_node.getParent().getName() .. "_" .. npc_node.getName()
-end
-
-function getNPCByName(name)
-    for _, node in pairs(DB.getChildren("npc")) do
-        if DB.getValue(node, "name") == name then return node end
-    end
-end
-
-function getCharsheetByName(name)
-    for _, node in pairs(DB.getChildren("charsheet")) do
-        if DB.getValue(node, "name") == name then return node end
-    end
 end
 
 function insertNpcPortraits(msg, sMode)
