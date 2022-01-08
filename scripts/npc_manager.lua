@@ -40,6 +40,7 @@ function handleCharsheetAdded(nodeParent, nodeChildAdded)
         addCharsheetNameMapping(nodeChildAdded, name)
     end
 end
+
 function handleNPCNameChanged(nameNode)
     local npc_node = nameNode.getParent()
     local npc_name = nameNode.getValue()
