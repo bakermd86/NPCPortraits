@@ -113,7 +113,7 @@ end
 function insertNpcPortraits(msg, sMode)
     if sMode == "chat" then
         local gmid, isgm = GmIdentityManager.getCurrent();
-        if isgm == nil then
+        if (isgm or "") == "" then
             local npc_node = getNPCByName(gmid)
             if not(npc_node == nil) then
                 -- If a matching NPC is found, set the msg icon to the name of the dummy portrait created for the NPC
