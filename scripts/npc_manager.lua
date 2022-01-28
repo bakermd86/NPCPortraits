@@ -4,6 +4,7 @@ end
 
 local _npcNamesToPortraitMap = {};
 local _charsheetNamesToPortraitMap = {};
+local _customDataTypes = {}
 
 function onDesktopInit()
     if User.isLocal() or User.isHost() then
@@ -19,16 +20,34 @@ function onDesktopInit()
         DB.addHandler(".npc", "onChildAdded", handleNPCAdded)
         DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
     end
+    self.addCustomRecordTypes()
+end
+
+function addCustomRecordTypes()
+    for _, dataType in ipairs(_customDataTypes) do
+        for _, dataNode in pairs(DB.getChildren(dataType)) do
+            handleNPCAdded(dataNode.getParent(), dataNode)
+        end
+    end
+end
+
+function registerDataType(dataType)
+    table.insert(_customDataTypes, dataType)
 end
 
 function handleNPCAdded(nodeParent, nodeChildAdded)
     DB.addHandler(nodeChildAdded.getNodeName()..".name", "onUpdate", handleNPCNameChanged)
+    DB.addHandler(nodeChildAdded.getNodeName()..".nonid_name", "onUpdate", handleNPCNameChanged)
     DB.addHandler(nodeChildAdded.getNodeName()..".token", "onUpdate", handleTokenChanged)
     DB.addHandler(nodeChildAdded.getNodeName(), "onDelete", removeNPCNameMapping)
     createDummyPortrait(nodeChildAdded, DB.getValue(nodeChildAdded, "token"))
     local name = DB.getValue(nodeChildAdded, "name", "")
     if not (name == "") then
         addNPCNameMapping(nodeChildAdded, name)
+    end
+    local nonid_name = DB.getValue(nodeChildAdded, "nonid_name", "")
+    if not (nonid_name == "") then
+        addNPCNameMapping(nodeChildAdded, nonid_name)
     end
 end
 
