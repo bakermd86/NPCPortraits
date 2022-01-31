@@ -118,7 +118,7 @@ function createDummyPortrait(npc_node, tokenStr)
         local npc_ident = formatDynamicPortraitName(npc_node)
         local dummy_node = DB.createChild("charsheet", npc_ident)
         if not (pcall(CampaignDataManager.setCharPortrait, dummy_node, tokenStr)) then
-            Debug.chat("Bad token found in NPC " .. DB.getValue(npc_node, "name") .. " with token path: " .. tokenStr)
+            Debug.console("Bad token found in NPC " .. DB.getValue(npc_node, "name") .. " with token path: " .. tokenStr)
         end
         -- Fortunately, portraits associated with deleted charsheets are only cleaned up at exit. So the dummy charsheet can be deleted here and the portrait will still work
         DB.deleteNode(dummy_node)
@@ -131,7 +131,13 @@ end
 
 function insertNpcPortraits(msg, sMode)
     if sMode == "chat" then
-        local gmid, isgm = GmIdentityManager.getCurrent();
+        local gmid = ""
+        local isgm = false
+        if (msg.sender or "GM") ~= "GM" then
+            gmid = msg.sender
+        else
+            gmid, isgm = GmIdentityManager.getCurrent();
+        end
         if (isgm or "") == "" then
             local npc_node = getNPCByName(gmid)
             if not(npc_node == nil) then
