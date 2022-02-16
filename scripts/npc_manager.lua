@@ -5,10 +5,13 @@ end
 local _npcNamesToPortraitMap = {};
 local _charsheetNamesToPortraitMap = {};
 local _customDataTypes = {}
+local _orgCreateBaseMessage = nil
 
 function onDesktopInit()
     if User.isLocal() or User.isHost() then
         ChatManager.registerDeliverMessageCallback(insertNpcPortraits)
+        _orgCreateBaseMessage = ChatManager.createBaseMessage
+        ChatManager.createBaseMessage = createBaseMessage
         -- Call change handler for all existing NPCs and charsheets at startup to create the dummy portraits (for NPCs) and map the names (for both)
         for _, npc_node in pairs(DB.getChildren("npc")) do
             handleNPCAdded(npc_node.getParent(), npc_node)
@@ -129,31 +132,62 @@ function formatDynamicPortraitName(npc_node)
     return "dummy_portrait_".. npc_node.getParent().getName() .. "_" .. npc_node.getName()
 end
 
-function insertNpcPortraits(msg, sMode)
-    if sMode == "chat" then
-        local gmid = ""
-        local isgm = false
-        if (msg.sender or "GM") ~= "GM" then
-            gmid = msg.sender
+function getPortraitByName(sName)
+    local portrait = "portrait_gm_token"
+    local isPlayer = false
+    if (sName or "") ~= "" then
+        local npc_node = getNPCByName(sName)
+        if not(npc_node == nil) then
+            -- If a matching NPC is found, set the msg icon to the name of the dummy portrait created for the NPC
+            local npc_icon = DB.getValue(npc_node, "token", "")
+            if (npc_icon or "") ~= "" then
+                portrait = "portrait_" .. formatDynamicPortraitName(npc_node).. "_chat"
+            end
         else
-            gmid, isgm = GmIdentityManager.getCurrent();
-        end
-        if (isgm or "") == "" then
-            local npc_node = getNPCByName(gmid)
-            if not(npc_node == nil) then
-                -- If a matching NPC is found, set the msg icon to the name of the dummy portrait created for the NPC
-                local npc_icon = DB.getValue(npc_node, "token", "")
-                if (npc_icon or "") ~= "" then
-                    msg.icon = "portrait_" .. formatDynamicPortraitName(npc_node).. "_chat"
-                end
-            else
-                -- If a matching NPC is not found, check if a PC is found and immitate them
-                local player_node = getCharsheetByName(gmid)
-                if player_node and player_node.getName() then
-                    msg.icon = "portrait_" .. player_node.getName() .. "_chat";
-                    msg.font = "chatfont"
-                end
+            -- If a matching NPC is not found, check if a PC is found and immitate them
+            local player_node = getCharsheetByName(sName)
+            if player_node and player_node.getName() then
+                portrait = "portrait_" .. player_node.getName() .. "_chat";
+                isPlayer = true
             end
         end
     end
+    return portrait, isPlayer
+end
+
+function getMessageSource(msg)
+    local gmid = ""
+    local isgm = false
+    if (msg.sender or "GM") ~= "GM" then
+        gmid = msg.sender
+    else
+        gmid, isgm = GmIdentityManager.getCurrent();
+    end
+    return gmid, isgm
+end
+
+function createBaseMessage(rSource, sUser)
+    local orgMessage = _orgCreateBaseMessage(rSource, sUser)
+    insertPortraitToMessage(orgMessage)
+    return orgMessage
+end
+
+function insertNpcPortraits(msg, sMode)
+    if sMode == "chat" then
+        insertPortraitToMessage(msg)
+    end
+end
+
+function insertPortraitToMessage(msg)
+    local gmid, isgm = getMessageSource(msg)
+    if (isgm or "") == "" then
+        portrait, isPlayer = getPortraitByName(gmid)
+        if (portrait or "") ~= "" then
+            msg.icon = portrait
+        end
+        if isPlayer then
+            msg.font = "chatfont"
+        end
+    end
+    return msg
 end
