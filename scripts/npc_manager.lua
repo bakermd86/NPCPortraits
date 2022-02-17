@@ -9,35 +9,50 @@ local _customDataTypes = {}
 local _orgCreateBaseMessage = nil
 local _debugMode = false
 
-function debugPrint(fCall, fIdx, msg)
-    msg = fCall .. ":" .. fIdx .. " | " .. tostring(msg)
-    if _debugMode then
-        Debug.chat(msg)
-    else
-        Debug.console(msg)
-    end
-end
-
 function onDesktopInit()
-    debugPrint("onDesktopInit", 1, (User.isLocal() or User.isHost()))
     if User.isLocal() or User.isHost() then
         ChatManager.registerDeliverMessageCallback(insertNpcPortraits)
         _orgCreateBaseMessage = ChatManager.createBaseMessage
         ChatManager.createBaseMessage = createBaseMessage
         -- Call change handler for all existing NPCs and charsheets at startup to create the dummy portraits (for NPCs) and map the names (for both)
-        for _, npc_node in pairs(DB.getChildren("npc")) do
-            debugPrint("onDesktopInit", 2, npc_node.getNodeName())
+        for _, npc_node in ipairs(getAllFromModules("npc")) do
             handleNPCAdded(npc_node.getParent(), npc_node)
         end
-        for _, pc_node in pairs(DB.getChildren("charsheet")) do
-            debugPrint("onDesktopInit", 3, pc_node.getNodeName())
+        for _, npc_node in pairs(DB.getChildren("combattracker.list")) do
+            handleNPCAdded(npc_node.getParent(), npc_node)
+        end
+        for _, pc_node in ipairs(getAllFromModules("charsheet")) do
             handleCharsheetAdded(pc_node.getParent(), pc_node)
         end
         -- Add DB onChildAdded handlers
         DB.addHandler(".npc", "onChildAdded", handleNPCAdded)
+        DB.addHandler(".combattracker.list", "onChildAdded", handleNPCAdded)
         DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
+        Module.onModuleLoad = onModuleLoad
     end
     self.addCustomRecordTypes()
+end
+
+function onModuleLoad(module)
+    for name, node in pairs(DB.getChildren("npc" .. "@" .. module)) do
+        handleNPCAdded(node.getParent(), node)
+    end
+    for name, node in pairs(DB.getChildren("charsheet" .. "@" .. module)) do
+        handleNPCAdded(node.getParent(), node)
+    end
+end
+
+function getAllFromModules(path)
+    local nodes = {}
+    for name, node in pairs(DB.getChildren(path)) do
+        table.insert(nodes, node)
+    end
+    for _, module in ipairs(Module.getModules()) do
+        for name, node in pairs(DB.getChildren(path .. "@" .. module)) do
+            table.insert(nodes, node)
+        end
+    end
+    return nodes
 end
 
 function addCustomRecordTypes()
@@ -45,6 +60,7 @@ function addCustomRecordTypes()
         for _, dataNode in pairs(DB.getChildren(dataType)) do
             handleNPCAdded(dataNode.getParent(), dataNode)
         end
+        DB.addHandler("."..dataType, "onChildAdded", handleNPCAdded)
     end
 end
 
@@ -111,44 +127,65 @@ function removeCharsheetNameMapping(charsheet_node)
 end
 
 function removeNameMapping(nameMap, mappedNode)
-    for name, node in pairs(nameMap) do
+    local parentName = mappedNode.getParent().getName()
+    local parentMap = nameMap[parentName]
+    if parentMap == nil then parentMap = {} end
+    for name, node in pairs(parentMap) do
         if node == mappedNode then
             nameMap[name] = nil
             break
         end
     end
+    nameMap[parentName] = parentMap
+end
+
+function addNameMapping(map, name, node)
+    if (name or "") ~= "" then
+        local parentName = node.getParent().getName()
+        local parentMap = map[parentName]
+        if parentMap == nil then parentMap = {} end
+        parentMap[name] = node
+        map[parentName] = parentMap
+    end
 end
 
 function addNPCNameMapping(npc_node, npc_name)
     if (npc_name or "") ~= "" then
-        _npcNamesToPortraitMap[npc_name] = npc_node
+        addNameMapping(_npcNamesToPortraitMap, npc_name, npc_node)
     end
-    debugPrint("addNPCNameMapping", 1, npc_name)
-    debugPrint("addNPCNameMapping", 2, npc_node.getNodeName())
 end
 
 function addNPCNonIdNameMapping(npc_node, npc_name)
     if (npc_name or "") ~= "" then
-        _npcNonIdNamesToPortraitMap[npc_name] = npc_node
+        addNameMapping(_npcNonIdNamesToPortraitMap, npc_name, npc_node)
     end
-    debugPrint("addNPCNonIdNameMapping", 1, npc_name)
-    debugPrint("addNPCNaaddNPCNonIdNameMappingmeMapping", 2, npc_node.getNodeName())
 end
 
 function addCharsheetNameMapping(charsheet_node, pc_name)
-    _charsheetNamesToPortraitMap[pc_name] = charsheet_node
+    addNameMapping(_charsheetNamesToPortraitMap, pc_name, charsheet_node)
 end
 
 function getNPCByName(name)
-    if (_npcNamesToPortraitMap[name] or "") ~= "" then
-        return _npcNamesToPortraitMap[name]
-    elseif (_npcNonIdNamesToPortraitMap[name] or "") ~= "" then
-        return _npcNonIdNamesToPortraitMap[name]
+    for parentName, parentMap in pairs(_npcNamesToPortraitMap) do
+        if (parentMap[name] or "") ~= "" then
+            return parentMap[name]
+        end
+    end
+    for parentName, parentMap in pairs(_npcNonIdNamesToPortraitMap) do
+        if (parentMap[name] or "") ~= "" then
+            return parentMap[name]
+        end
     end
     return nil
 end
+
 function getCharsheetByName(name)
-    return _charsheetNamesToPortraitMap[name]
+    for parentName, parentMap in pairs(_charsheetNamesToPortraitMap) do
+        if (parentMap[name] or "") ~= "" then
+            return parentMap[name]
+        end
+    end
+    return nil
 end
 
 function handleTokenChanged(tokenNode)
@@ -157,16 +194,13 @@ end
 
 -- CampaignDataManager.setCharPortrait is the only way I have found to generate a portrait set. So a dummy charsheet has to be created
 function createDummyPortrait(npc_node, tokenStr)
-    debugPrint("createDummyPortrait", 1, npc_node.getNodeName())
-    debugPrint("createDummyPortrait", 2, tokenStr)
     if (tokenStr or "") ~= "" then
         local npc_ident = formatDynamicPortraitName(npc_node)
         local dummy_node = DB.createChild("charsheet", npc_ident)
         if not (pcall(CampaignDataManager.setCharPortrait, dummy_node, tokenStr)) then
-            debugPrint("createDummyPortrait", 3, "Bad token found in NPC " .. DB.getValue(npc_node, "name") .. " with token path: " .. tokenStr)
+            Debug.console("Bad token found in NPC " .. DB.getValue(npc_node, "name") .. " with token path: " .. tokenStr)
         end
         -- Fortunately, portraits associated with deleted charsheets are only cleaned up at exit. So the dummy charsheet can be deleted here and the portrait will still work
-        debugPrint("createDummyPortrait", 4, dummy_node.getNodeName())
         DB.deleteNode(dummy_node)
     end
 end
@@ -178,18 +212,14 @@ end
 function getPortraitByName(sName)
     local portrait = "portrait_gm_token"
     local isPlayer = false
-    debugPrint("getPortraitByName", 1, Name)
     if (sName or "") ~= "" then
         local npc_node = getNPCByName(sName)
-        if not(npc_node == nil) then
-            debugPrint("getPortraitByName", 2, npc_node.getNodeName())
+        if (npc_node or "") ~= "" then
             -- If a matching NPC is found, set the msg icon to the name of the dummy portrait created for the NPC
             local npc_icon = DB.getValue(npc_node, "token", "")
-            debugPrint("getPortraitByName", 3, npc_icon)
             if (npc_icon or "") ~= "" then
                 portrait = "portrait_" .. formatDynamicPortraitName(npc_node).. "_chat"
             end
-            debugPrint("getPortraitByName", 4, portrait)
         else
             -- If a matching NPC is not found, check if a PC is found and immitate them
             local player_node = getCharsheetByName(sName)
@@ -227,12 +257,8 @@ end
 
 function insertPortraitToMessage(msg)
     local gmid, isgm = getMessageSource(msg)
-    debugPrint("insertPortraitToMessage", 1, gmid)
-    debugPrint("insertPortraitToMessage", 2, isgm)
     if (isgm or "") == "" then
         portrait, isPlayer = getPortraitByName(gmid)
-        debugPrint("insertPortraitToMessage", 3, portrait)
-        debugPrint("insertPortraitToMessage", 4, isPlayer)
         if (portrait or "") ~= "" then
             msg.icon = portrait
         end
