@@ -1,0 +1,16 @@
+<root>
+	<template name="button_activateid">
+		<buttoncontrol>
+			<icon normal="button_speak" pressed="button_speak_down" />
+			<script>
+				function onButtonPress()
+					local node = window.getDatabaseNode();
+					local sName = ActorManager.getDisplayName(node);
+					GmIdentityManager.addIdentity(sName);
+					NPCPortraitManager.registerIdentity(node, sName);
+				end
+			</script>
+			<gmvisibleonly />
+		</buttoncontrol>
+	</template>
+</root>

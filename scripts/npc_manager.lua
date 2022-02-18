@@ -5,54 +5,37 @@ end
 local _npcNamesToPortraitMap = {};
 local _npcNonIdNamesToPortraitMap = {};
 local _charsheetNamesToPortraitMap = {};
+local _rollNodeMap = {}
+local _rollNamesMap = {}
 local _customDataTypes = {}
 local _orgCreateBaseMessage = nil
-local _debugMode = false
 
 function onDesktopInit()
     if User.isLocal() or User.isHost() then
         ChatManager.registerDeliverMessageCallback(insertNpcPortraits)
         _orgCreateBaseMessage = ChatManager.createBaseMessage
         ChatManager.createBaseMessage = createBaseMessage
-        -- Call change handler for all existing NPCs and charsheets at startup to create the dummy portraits (for NPCs) and map the names (for both)
-        for _, npc_node in ipairs(getAllFromModules("npc")) do
-            handleNPCAdded(npc_node.getParent(), npc_node)
+        -- Call change handler for all existing CT entries and charsheets at startup to create the dummy
+        -- portraits (for CT entries) and map the names (for both)
+        for _, npc_node in pairs(CombatManager.getCombatantNodes()) do
+            handleCTEntry(npc_node.getParent(), npc_node)
         end
-        for _, npc_node in pairs(DB.getChildren("combattracker.list")) do
-            handleNPCAdded(npc_node.getParent(), npc_node)
-        end
-        for _, pc_node in ipairs(getAllFromModules("charsheet")) do
+        for _, pc_node in pairs(DB.getChildren("charsheet")) do
             handleCharsheetAdded(pc_node.getParent(), pc_node)
         end
         -- Add DB onChildAdded handlers
-        DB.addHandler(".npc", "onChildAdded", handleNPCAdded)
-        DB.addHandler(".combattracker.list", "onChildAdded", handleNPCAdded)
+        DB.addHandler(CombatManager.CT_COMBATANT_PATH, "onChildAdded", handleCTEntry)
         DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
-        Module.onModuleLoad = onModuleLoad
     end
     self.addCustomRecordTypes()
 end
 
-function onModuleLoad(module)
-    for name, node in pairs(DB.getChildren("npc" .. "@" .. module)) do
+function registerIdentity(node, name)
+    if node.getParent().getName() ~= "charsheet" then
         handleNPCAdded(node.getParent(), node)
+    else
+        handleCharsheetAdded(node.getParent(), node)
     end
-    for name, node in pairs(DB.getChildren("charsheet" .. "@" .. module)) do
-        handleNPCAdded(node.getParent(), node)
-    end
-end
-
-function getAllFromModules(path)
-    local nodes = {}
-    for name, node in pairs(DB.getChildren(path)) do
-        table.insert(nodes, node)
-    end
-    for _, module in ipairs(Module.getModules()) do
-        for name, node in pairs(DB.getChildren(path .. "@" .. module)) do
-            table.insert(nodes, node)
-        end
-    end
-    return nodes
 end
 
 function addCustomRecordTypes()
@@ -66,6 +49,19 @@ end
 
 function registerDataType(dataType)
     table.insert(_customDataTypes, dataType)
+end
+
+function handleCTEntry(parentNode, npc_node)
+    if parentNode.getName() == "charsheet" then
+        return
+    end
+    DB.addHandler(npc_node.getNodeName()..".token", "onUpdate", handleTokenChanged)
+    DB.addHandler(npc_node.getNodeName()..".name", "onUpdate", handleNPCNameChanged)
+    DB.addHandler(npc_node.getNodeName()..".nonid_name", "onUpdate", handleNPCNonIdNameChanged)
+    DB.addHandler(npc_node.getNodeName(), "onDelete", removeNPCNameMapping)
+    local npc_ident = createDummyPortrait(npc_node, DB.getValue(npc_node, "token"))
+    _rollNodeMap[npc_node.getNodeName()] = npc_ident
+    _rollNamesMap[DB.getValue(npc_node, "name", "")] = npc_node.getNodeName()
 end
 
 function handleNPCAdded(nodeParent, nodeChildAdded)
@@ -176,6 +172,11 @@ function getNPCByName(name)
             return parentMap[name]
         end
     end
+    if (_rollNamesMap[name] or "") ~= "" then
+        if (_rollNodeMap[_rollNamesMap[name]] or "") ~= "" then
+            return DB.findNode(_rollNamesMap[name])
+        end
+    end
     return nil
 end
 
@@ -202,6 +203,7 @@ function createDummyPortrait(npc_node, tokenStr)
         end
         -- Fortunately, portraits associated with deleted charsheets are only cleaned up at exit. So the dummy charsheet can be deleted here and the portrait will still work
         DB.deleteNode(dummy_node)
+        return npc_ident
     end
 end
 
@@ -214,6 +216,9 @@ function getPortraitByName(sName)
     local isPlayer = false
     if (sName or "") ~= "" then
         local npc_node = getNPCByName(sName)
+        if (npc_node or "") == "" then
+
+        end
         if (npc_node or "") ~= "" then
             -- If a matching NPC is found, set the msg icon to the name of the dummy portrait created for the NPC
             local npc_icon = DB.getValue(npc_node, "token", "")
@@ -245,26 +250,48 @@ end
 
 function createBaseMessage(rSource, sUser)
     local orgMessage = _orgCreateBaseMessage(rSource, sUser)
-    insertPortraitToMessage(orgMessage)
+    insertPortraitToMessage(orgMessage, rSource)
     return orgMessage
 end
 
 function insertNpcPortraits(msg, sMode)
-    if sMode == "chat" then
-        insertPortraitToMessage(msg)
+    if (sMode == "chat") then
+        insertPortraitToMessage(msg, nil)
+    elseif (sMode == "" and msg.hasdice) then
+        handleRollReveal(msg)
     end
 end
 
-function insertPortraitToMessage(msg)
-    local gmid, isgm = getMessageSource(msg)
-    if (isgm or "") == "" then
-        portrait, isPlayer = getPortraitByName(gmid)
-        if (portrait or "") ~= "" then
-            msg.icon = portrait
+function handleRollReveal(msg)
+    local rSource = {["sCreatureNode"]=_rollNamesMap[msg.sender]}
+    insertPortraitToMessage(msg, rSource)
+end
+
+function insertPortraitToMessage(msg, rSource)
+    local portrait = ""
+    local isPlayer = false
+    if ((rSource and rSource.sCreatureNode) or "") ~= "" then
+        local sourceNode = DB.findNode(rSource.sCreatureNode)
+        isPlayer = sourceNode.getParent().getName() == "charsheet"
+        local npc_ident = _rollNodeMap[rSource.sCreatureNode]
+        if (npc_ident or "") == "" then
+            npc_ident = createDummyPortrait(sourceNode, DB.getValue(sourceNode, "token"))
+            DB.addHandler(sourceNode.getNodeName()..".token", "onUpdate", handleTokenChanged)
+            _rollNodeMap[rSource.sCreatureNode] = npc_ident
         end
-        if isPlayer then
-            msg.font = "chatfont"
+        _rollNamesMap[DB.getValue(sourceNode, "name", "")] = rSource.sCreatureNode
+        portrait = "portrait_" .. npc_ident .. "_chat"
+   else
+        local gmid, isgm = getMessageSource(msg)
+        if (isgm or "") == "" then
+            portrait, isPlayer = getPortraitByName(gmid)
         end
+    end
+    if (portrait or "") ~= "" then
+        msg.icon = portrait
+    end
+    if isPlayer then
+        msg.font = "chatfont"
     end
     return msg
 end
