@@ -275,7 +275,11 @@ function insertPortraitToMessage(msg, rSource)
         isPlayer = sourceNode.getParent().getName() == "charsheet"
         local npc_ident = _rollNodeMap[rSource.sCreatureNode]
         if (npc_ident or "") == "" then
-            npc_ident = createDummyPortrait(sourceNode, DB.getValue(sourceNode, "token"))
+            if isPlayer then
+                npc_ident = sourceNode.getName()
+            else
+                npc_ident = createDummyPortrait(sourceNode, DB.getValue(sourceNode, "token"))
+            end
             DB.addHandler(sourceNode.getNodeName()..".token", "onUpdate", handleTokenChanged)
             _rollNodeMap[rSource.sCreatureNode] = npc_ident
         end
