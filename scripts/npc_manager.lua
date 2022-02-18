@@ -279,8 +279,10 @@ function insertPortraitToMessage(msg, rSource)
             DB.addHandler(sourceNode.getNodeName()..".token", "onUpdate", handleTokenChanged)
             _rollNodeMap[rSource.sCreatureNode] = npc_ident
         end
-        _rollNamesMap[DB.getValue(sourceNode, "name", "")] = rSource.sCreatureNode
-        portrait = "portrait_" .. npc_ident .. "_chat"
+        if (npc_ident or "") ~= "" then
+            _rollNamesMap[DB.getValue(sourceNode, "name", "")] = rSource.sCreatureNode
+            portrait = "portrait_" .. npc_ident .. "_chat"
+        end
    else
         local gmid, isgm = getMessageSource(msg)
         if (isgm or "") == "" then
