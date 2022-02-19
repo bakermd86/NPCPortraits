@@ -9,6 +9,9 @@ local _rollNodeMap = {}
 local _rollNamesMap = {}
 local _customDataTypes = {}
 local _orgCreateBaseMessage = nil
+local _orgSWIDManager = nil
+
+local _swStripPrefix = "[GM] "
 
 function onDesktopInit()
     if User.isLocal() or User.isHost() then
@@ -28,6 +31,17 @@ function onDesktopInit()
         DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
     end
     self.addCustomRecordTypes()
+    if User.getRulesetName() == "SWD" then
+        _orgSWIDManager = IdentityManagerSW.addIdentity
+        IdentityManagerSW.addIdentity = registerSWDId
+    end
+end
+
+function registerSWDId(name, node)
+    if _orgSWIDManager then
+        _orgSWIDManager(name, node)
+    end
+    registerIdentity(node, name)
 end
 
 function registerIdentity(node, name)
@@ -211,10 +225,18 @@ function formatDynamicPortraitName(npc_node)
     return "dummy_portrait_".. npc_node.getParent().getName() .. "_" .. npc_node.getName()
 end
 
+function stripRulesetPrefixes(sName)
+    if string.sub(sName, 1, 5) == _swStripPrefix then
+        sName = string.sub(sName, 6)
+    end
+    return sName
+end
+
 function getPortraitByName(sName)
     local portrait = "portrait_gm_token"
     local isPlayer = false
     if (sName or "") ~= "" then
+        sName = stripRulesetPrefixes(sName)
         local npc_node = getNPCByName(sName)
         if (npc_node or "") == "" then
 
