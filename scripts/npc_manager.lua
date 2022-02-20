@@ -12,6 +12,7 @@ local _orgCreateBaseMessage = nil
 local _orgSWIDManager = nil
 
 local _swStripPrefix = "[GM] "
+swadeRulesetName = "SavageWorlds"
 
 function onDesktopInit()
     if User.isLocal() or User.isHost() then
@@ -31,24 +32,27 @@ function onDesktopInit()
         DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
     end
     self.addCustomRecordTypes()
-    if User.getRulesetName() == "SWD" then
+    if User.getRulesetName() == swadeRulesetName then
         _orgSWIDManager = IdentityManagerSW.addIdentity
         IdentityManagerSW.addIdentity = registerSWDId
     end
 end
 
-function registerSWDId(name, node)
+function registerSWDId(name, node, isGm)
+    Debug.chat(name, node, isGm)
     if _orgSWIDManager then
-        _orgSWIDManager(name, node)
+        _orgSWIDManager(name, node, isGm)
     end
     registerIdentity(node, name)
 end
 
 function registerIdentity(node, name)
-    if node.getParent().getName() ~= "charsheet" then
-        handleNPCAdded(node.getParent(), node)
-    else
-        handleCharsheetAdded(node.getParent(), node)
+    if (node or "") ~= "" then
+        if node.getParent().getName() ~= "charsheet" then
+            handleNPCAdded(node.getParent(), node)
+        else
+            handleCharsheetAdded(node.getParent(), node)
+        end
     end
 end
 
