@@ -8,7 +8,7 @@
 					if User.getRulesetName() == NPCPortraitManager.swadeRulesetName then
 						IdentityManagerSW.addIdentity(window.name.getValue(), node)
 					elseif User.getRulesetName() == "SWD" then
-						sName = window.name.getValue();
+						local sName = window.name.getValue();
 						NPCPortraitManager.registerIdentity(node, sName);
 						GmIdentityManager.addIdentity(sName);
 					else

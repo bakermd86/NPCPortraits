@@ -29,9 +29,9 @@ function onDesktopInit()
         end
         -- Add DB onChildAdded handlers
         if User.getRulesetName() == swadeRulesetName then
-            DB.addHandler("combattracker.combatantgroups.*.combatants", "onChildAdded", handleCTEntry)
+            DB.addHandler(CombatManager.CT_LIST .. ".*.combatants", "onChildAdded", handleCTEntry)
         else
-            DB.addHandler(CombatManager.CT_COMBATANT_PATH, "onChildAdded", handleCTEntry)
+            DB.addHandler(CombatManager.CT_LIST, "onChildAdded", handleCTEntry)
         end
         DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
     end
