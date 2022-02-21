@@ -28,7 +28,11 @@ function onDesktopInit()
             handleCharsheetAdded(pc_node.getParent(), pc_node)
         end
         -- Add DB onChildAdded handlers
-        DB.addHandler(CombatManager.CT_COMBATANT_PATH, "onChildAdded", handleCTEntry)
+        if User.getRulesetName() == swadeRulesetName then
+            DB.addHandler("combattracker.combatantgroups.*.combatants", "onChildAdded", handleCTEntry)
+        else
+            DB.addHandler(CombatManager.CT_COMBATANT_PATH, "onChildAdded", handleCTEntry)
+        end
         DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
     end
     self.addCustomRecordTypes()
@@ -39,7 +43,6 @@ function onDesktopInit()
 end
 
 function registerSWDId(name, node, isGm)
-    Debug.chat(name, node, isGm)
     if _orgSWIDManager then
         _orgSWIDManager(name, node, isGm)
     end
@@ -70,7 +73,8 @@ function registerDataType(dataType)
 end
 
 function handleCTEntry(parentNode, npc_node)
-    if parentNode.getName() == "charsheet" then
+    local class, recordLink = DB.getValue(npc_node, "link")
+    if (parentNode.getName() == "charsheet") or (class == "charsheet") then
         return
     end
     DB.addHandler(npc_node.getNodeName()..".token", "onUpdate", handleTokenChanged)
@@ -226,7 +230,7 @@ function createDummyPortrait(npc_node, tokenStr)
 end
 
 function formatDynamicPortraitName(npc_node)
-    return "dummy_portrait_".. npc_node.getParent().getName() .. "_" .. npc_node.getName()
+    return "dummy_portrait_".. string.gsub(npc_node.getNodeName(), "%.", "_")
 end
 
 function stripRulesetPrefixes(sName)
