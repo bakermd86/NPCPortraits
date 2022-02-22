@@ -230,7 +230,7 @@ function createDummyPortrait(npc_node, tokenStr)
 end
 
 function formatDynamicPortraitName(npc_node)
-    return "dummy_portrait_".. string.gsub(npc_node.getNodeName(), "%.", "_")
+    return "dummy_portrait_".. string.gsub(string.gsub(npc_node.getNodeName(), "%.", "_"), '@', "-")
 end
 
 function stripRulesetPrefixes(sName)
