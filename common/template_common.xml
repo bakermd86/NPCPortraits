@@ -5,8 +5,12 @@
 			<script>
 				function onButtonPress()
 					local node = window.getDatabaseNode();
-					if User.getRulesetName() == "SWD" then
+					if User.getRulesetName() == NPCPortraitManager.swadeRulesetName then
 						IdentityManagerSW.addIdentity(window.name.getValue(), node)
+					elseif User.getRulesetName() == "SWD" then
+						local sName = window.name.getValue();
+						NPCPortraitManager.registerIdentity(node, sName);
+						GmIdentityManager.addIdentity(sName);
 					else
 						local sName = ActorManager.getDisplayName(node);
 						NPCPortraitManager.registerIdentity(node, sName);

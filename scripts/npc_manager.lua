@@ -12,6 +12,7 @@ local _orgCreateBaseMessage = nil
 local _orgSWIDManager = nil
 
 local _swStripPrefix = "[GM] "
+swadeRulesetName = "SavageWorlds"
 
 function onDesktopInit()
     if User.isLocal() or User.isHost() then
@@ -27,28 +28,34 @@ function onDesktopInit()
             handleCharsheetAdded(pc_node.getParent(), pc_node)
         end
         -- Add DB onChildAdded handlers
-        DB.addHandler(CombatManager.CT_COMBATANT_PATH, "onChildAdded", handleCTEntry)
+        if User.getRulesetName() == swadeRulesetName then
+            DB.addHandler(CombatManager.CT_LIST .. ".*.combatants", "onChildAdded", handleCTEntry)
+        else
+            DB.addHandler(CombatManager.CT_LIST, "onChildAdded", handleCTEntry)
+        end
         DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
     end
     self.addCustomRecordTypes()
-    if User.getRulesetName() == "SWD" then
+    if User.getRulesetName() == swadeRulesetName then
         _orgSWIDManager = IdentityManagerSW.addIdentity
         IdentityManagerSW.addIdentity = registerSWDId
     end
 end
 
-function registerSWDId(name, node)
+function registerSWDId(name, node, isGm)
     if _orgSWIDManager then
-        _orgSWIDManager(name, node)
+        _orgSWIDManager(name, node, isGm)
     end
     registerIdentity(node, name)
 end
 
 function registerIdentity(node, name)
-    if node.getParent().getName() ~= "charsheet" then
-        handleNPCAdded(node.getParent(), node)
-    else
-        handleCharsheetAdded(node.getParent(), node)
+    if (node or "") ~= "" then
+        if node.getParent().getName() ~= "charsheet" then
+            handleNPCAdded(node.getParent(), node)
+        else
+            handleCharsheetAdded(node.getParent(), node)
+        end
     end
 end
 
@@ -66,7 +73,8 @@ function registerDataType(dataType)
 end
 
 function handleCTEntry(parentNode, npc_node)
-    if parentNode.getName() == "charsheet" then
+    local class, recordLink = DB.getValue(npc_node, "link")
+    if (parentNode.getName() == "charsheet") or (class == "charsheet") then
         return
     end
     DB.addHandler(npc_node.getNodeName()..".token", "onUpdate", handleTokenChanged)
@@ -222,7 +230,7 @@ function createDummyPortrait(npc_node, tokenStr)
 end
 
 function formatDynamicPortraitName(npc_node)
-    return "dummy_portrait_".. npc_node.getParent().getName() .. "_" .. npc_node.getName()
+    return "dummy_portrait_".. string.gsub(string.gsub(npc_node.getNodeName(), "%.", "_"), '@', "-")
 end
 
 function stripRulesetPrefixes(sName)
