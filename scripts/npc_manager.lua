@@ -245,22 +245,19 @@ function getPortraitByName(sName)
     local isPlayer = false
     if (sName or "") ~= "" then
         sName = stripRulesetPrefixes(sName)
-        local npc_node = getNPCByName(sName)
-        if (npc_node or "") == "" then
-
-        end
-        if (npc_node or "") ~= "" then
-            -- If a matching NPC is found, set the msg icon to the name of the dummy portrait created for the NPC
-            local npc_icon = DB.getValue(npc_node, "token", "")
-            if (npc_icon or "") ~= "" then
-                portrait = "portrait_" .. formatDynamicPortraitName(npc_node).. "_chat"
-            end
+        -- First check if a PC is found and imitate them
+        local player_node = getCharsheetByName(sName)
+        if player_node and player_node.getName() then
+            portrait = "portrait_" .. player_node.getName() .. "_chat";
+            isPlayer = true
         else
-            -- If a matching NPC is not found, check if a PC is found and immitate them
-            local player_node = getCharsheetByName(sName)
-            if player_node and player_node.getName() then
-                portrait = "portrait_" .. player_node.getName() .. "_chat";
-                isPlayer = true
+            -- If a matching PC is not found, check if a matching NPC can be found
+            local npc_node = getNPCByName(sName)
+            if (npc_node or "") ~= "" then
+                local npc_icon = DB.getValue(npc_node, "token", "")
+                if (npc_icon or "") ~= "" then
+                    portrait = "portrait_" .. formatDynamicPortraitName(npc_node).. "_chat"
+                end
             end
         end
     end

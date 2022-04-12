@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="iso-8859-1"?>
 
 <root logo="logo.png">
-	<announcement text="Fen's NPC Portrait Workaround v2.2.1" font="emotefont" />
+	<announcement text="Fen's NPC Portrait Workaround v2.2.2" font="emotefont" />
 
 	<properties>
 		<name>Fen's NPC Portrait Workaround</name>
-		<version>2.2.1</version>
+		<version>2.2.2</version>
 
 		<author>Fen</author>
 		<description>Uses a workaround to generate chat portraits for NPCs</description>
