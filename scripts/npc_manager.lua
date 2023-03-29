@@ -16,7 +16,9 @@ swadeRulesetName = "SavageWorlds"
 
 function onDesktopInit()
     if User.isLocal() or User.isHost() then
+	    ChatManager.unregisterDeliverMessageCallback(LanguageManager.onChatDeliverMessage);
         ChatManager.registerDeliverMessageCallback(insertNpcPortraits)
+	    ChatManager.registerDeliverMessageCallback(LanguageManager.onChatDeliverMessage);
         _orgCreateBaseMessage = ChatManager.createBaseMessage
         ChatManager.createBaseMessage = createBaseMessage
         -- Call change handler for all existing CT entries and charsheets at startup to create the dummy
