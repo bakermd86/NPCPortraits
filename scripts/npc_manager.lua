@@ -10,9 +10,10 @@ local _rollNamesMap = {}
 local _customDataTypes = {}
 local _orgCreateBaseMessage = nil
 local _orgSWIDManager = nil
+local TOKEN_OVERRIDE_OPT = "TOKEN_OVERRIDE_OPT"
 
 local _swStripPrefix = "[GM] "
-swadeRulesetName = "SavageWorlds"
+local swadeRulesetName = "SavageWorlds"
 
 function onDesktopInit()
     if User.isLocal() or User.isHost() then
@@ -36,6 +37,9 @@ function onDesktopInit()
             DB.addHandler(CombatManager.CT_LIST, "onChildAdded", handleCTEntry)
         end
         DB.addHandler(".charsheet", "onChildAdded", handleCharsheetAdded)
+        Interface.onWindowOpened = onNewWindow
+        OptionsManager.registerOption2(TOKEN_OVERRIDE_OPT, true, "option_header_npc_portraits", "label_option_npc_override", "option_entry_cycler",
+        { labels = "option_val_5|option_val_6|option_val_7|option_val_8|option_val_1|option_val_2|option_val_3", values = "5|6|7|8|1|2|3", baselabel = "option_val_4", baseval = "4", default = "4" });
     end
     self.addCustomRecordTypes()
     if User.getRulesetName() == swadeRulesetName then
@@ -43,6 +47,33 @@ function onDesktopInit()
         IdentityManagerSW.addIdentity = registerSWDId
     end
 end
+
+function onNewWindow(window)
+    local dNode = window.getDatabaseNode()
+    if ((dNode or "") == "") then return end
+    local sRecord = DB.getPath(dNode)
+    local recordClass = LibraryData.getRecordTypeFromRecordPath(sRecord)
+    if (recordClass ~= "npc") and ((_customDataTypes[recordClass] or "") == "") then return end
+    window.registerMenuItem("Override Chat Token", "prompt", OptionsManager.getOption(TOKEN_OVERRIDE_OPT))
+
+    local _orgOnWinSelection =  window.onMenuSelection
+    function onNPCMenuSelection(selectionNum)
+        if (selectionNum == tonumber(OptionsManager.getOption(TOKEN_OVERRIDE_OPT))) then
+            local w = Interface.openWindow("portrait_select", "")
+            function onTokenActivate(sFile)
+                DB.setValue(dNode, "chat_token_override", "token",  sFile)
+                createDummyPortrait(dNode, sFile)
+                w.close()
+            end
+            w.onActivate = onTokenActivate
+
+        elseif (_orgOnWinSelection or "") ~= "" then
+            _orgOnWinSelection(selectionNum)
+        end
+    end
+    window.onMenuSelection = onNPCMenuSelection
+end
+
 
 function registerSWDId(name, node, isGm)
     if _orgSWIDManager then
@@ -62,7 +93,7 @@ function registerIdentity(node, name)
 end
 
 function addCustomRecordTypes()
-    for _, dataType in ipairs(_customDataTypes) do
+    for dataType, _  in pairs(_customDataTypes) do
         for _, dataNode in pairs(DB.getChildren(dataType)) do
             handleNPCAdded(dataNode.getParent(), dataNode)
         end
@@ -71,7 +102,8 @@ function addCustomRecordTypes()
 end
 
 function registerDataType(dataType)
-    table.insert(_customDataTypes, dataType)
+    _customDataTypes[dataType] = true
+    -- table.insert(_customDataTypes, dataType)
 end
 
 function handleCTEntry(parentNode, npc_node)
@@ -217,8 +249,18 @@ function handleTokenChanged(tokenNode)
     createDummyPortrait(tokenNode.getParent(), DB.getValue(tokenNode, ""))
 end
 
+function ends_with(str, ending)
+    return ending == "" or str:sub(-#ending) == ending
+ end
+
 -- CampaignDataManager.setCharPortrait is the only way I have found to generate a portrait set. So a dummy charsheet has to be created
 function createDummyPortrait(npc_node, tokenStr)
+    if (DB.getValue(npc_node, "chat_token_override") or "") ~= "" then
+        tokenStr = DB.getValue(npc_node, "chat_token_override")
+    end
+    if (ends_with(tokenStr, "webm") or ends_with(tokenStr, "webp")) then
+        return
+    end
     if (tokenStr or "") ~= "" then
         local npc_ident = formatDynamicPortraitName(npc_node)
         local dummy_node = DB.createChild("charsheet", npc_ident)

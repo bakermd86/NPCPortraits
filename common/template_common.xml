@@ -1,4 +1,11 @@
 <root>
+
+	<string name="option_val_6">6</string>
+	<string name="option_val_7">7</string>
+	<string name="option_val_8">8</string>
+	<string name="option_header_npc_portraits">NPC Chat Portraits</string>
+	<string name="label_option_npc_override">Override Option Position</string>
+
 	<template name="button_activateid">
 		<buttoncontrol>
 			<icon normal="button_speak" pressed="button_speak_down" />
