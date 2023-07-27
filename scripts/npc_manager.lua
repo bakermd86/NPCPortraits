@@ -122,7 +122,6 @@ function handleCTEntry(parentNode, npc_node)
     DB.addHandler(npc_node.getNodeName()..".nonid_name", "onUpdate", handleNPCNonIdNameChanged)
     DB.addHandler(npc_node.getNodeName(), "onDelete", removeNPCNameMapping)
     local npc_ident = createDummyPortrait(npc_node, DB.getValue(npc_node, "token"))
-    if (npc_ident or "") == "" then return end
     _rollNodeMap[npc_node.getNodeName()] = npc_ident
     _rollNamesMap[DB.getValue(npc_node, "name", "")] = npc_node.getNodeName()
 end
@@ -289,6 +288,12 @@ function stripRulesetPrefixes(sName)
     return sName
 end
 
+function get_npc_token(npc_node)
+    local override_token = DB.getValue(npc_node, "chat_token_override", "")
+    if (override_token or "") ~= "" then return override_token end
+    return DB.getValue(npc_node, "token", "")
+end
+
 function getPortraitByName(sName)
     local portrait = "portrait_gm_token"
     local isPlayer = false
@@ -303,7 +308,7 @@ function getPortraitByName(sName)
             -- If a matching PC is not found, check if a matching NPC can be found
             local npc_node = getNPCByName(sName)
             if (npc_node or "") ~= "" then
-                local npc_icon = DB.getValue(npc_node, "token", "")
+                local npc_icon = get_npc_token(npc_node)
                 if (npc_icon or "") ~= "" then
                     portrait = "portrait_" .. formatDynamicPortraitName(npc_node).. "_chat"
                 end
