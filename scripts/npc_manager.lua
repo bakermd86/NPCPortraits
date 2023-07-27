@@ -54,21 +54,27 @@ function onNewWindow(window)
     local sRecord = DB.getPath(dNode)
     local recordClass = LibraryData.getRecordTypeFromRecordPath(sRecord)
     if (recordClass ~= "npc") and ((_customDataTypes[recordClass] or "") == "") then return end
-    window.registerMenuItem("Override Chat Token", "prompt", OptionsManager.getOption(TOKEN_OVERRIDE_OPT))
+    window.registerMenuItem("NPC Chat Tokens", "prompt", OptionsManager.getOption(TOKEN_OVERRIDE_OPT))
+    window.registerMenuItem("Override Chat Token", "prompt", OptionsManager.getOption(TOKEN_OVERRIDE_OPT), OptionsManager.getOption(TOKEN_OVERRIDE_OPT))
+    window.registerMenuItem("Remove Token Override", "chatclear", OptionsManager.getOption(TOKEN_OVERRIDE_OPT), OptionsManager.getOption(TOKEN_OVERRIDE_OPT)+1)
 
     local _orgOnWinSelection =  window.onMenuSelection
-    function onNPCMenuSelection(selectionNum)
-        if (selectionNum == tonumber(OptionsManager.getOption(TOKEN_OVERRIDE_OPT))) then
-            local w = Interface.openWindow("portrait_select", "")
-            function onTokenActivate(sFile)
-                DB.setValue(dNode, "chat_token_override", "token",  sFile)
-                createDummyPortrait(dNode, sFile)
-                w.close()
+    function onNPCMenuSelection(sNum1, sNum2, ...)
+        local baseNum = tonumber(OptionsManager.getOption(TOKEN_OVERRIDE_OPT))
+        if (sNum1 == baseNum) then
+            if (sNum2 == baseNum) then
+                local w = Interface.openWindow("portrait_select", "")
+                function onTokenActivate(sFile)
+                    DB.setValue(dNode, "chat_token_override", "token",  sFile)
+                    createDummyPortrait(dNode, sFile)
+                    w.close()
+                end
+                w.onActivate = onTokenActivate
+            elseif (sNum2 == baseNum+1) then
+                DB.setValue(dNode, "chat_token_override", "token", "")
             end
-            w.onActivate = onTokenActivate
-
         elseif (_orgOnWinSelection or "") ~= "" then
-            _orgOnWinSelection(selectionNum)
+            _orgOnWinSelection(sNum1, sNum2, ...)
         end
     end
     window.onMenuSelection = onNPCMenuSelection
@@ -116,6 +122,7 @@ function handleCTEntry(parentNode, npc_node)
     DB.addHandler(npc_node.getNodeName()..".nonid_name", "onUpdate", handleNPCNonIdNameChanged)
     DB.addHandler(npc_node.getNodeName(), "onDelete", removeNPCNameMapping)
     local npc_ident = createDummyPortrait(npc_node, DB.getValue(npc_node, "token"))
+    if (npc_ident or "") == "" then return end
     _rollNodeMap[npc_node.getNodeName()] = npc_ident
     _rollNamesMap[DB.getValue(npc_node, "name", "")] = npc_node.getNodeName()
 end
@@ -258,14 +265,12 @@ function createDummyPortrait(npc_node, tokenStr)
     if (DB.getValue(npc_node, "chat_token_override") or "") ~= "" then
         tokenStr = DB.getValue(npc_node, "chat_token_override")
     end
-    if (ends_with(tokenStr, "webm") or ends_with(tokenStr, "webp")) then
-        return
-    end
-    if (tokenStr or "") ~= "" then
+    if ((tokenStr or "") ~= "") and (ends_with(tokenStr, ".jpg") or ends_with(tokenStr, ".png")) then
+        Debug.console(tokenStr)
         local npc_ident = formatDynamicPortraitName(npc_node)
         local dummy_node = DB.createChild("charsheet", npc_ident)
         if not (pcall(CampaignDataManager.setCharPortrait, dummy_node, tokenStr)) then
-            Debug.console("Bad token found in NPC " .. DB.getValue(npc_node, "name") .. " with token path: " .. tokenStr)
+            Debug.chat("Bad token found in NPC " .. DB.getValue(npc_node, "name") .. " with token path: " .. tokenStr)
         end
         -- Fortunately, portraits associated with deleted charsheets are only cleaned up at exit. So the dummy charsheet can be deleted here and the portrait will still work
         DB.deleteNode(dummy_node)
@@ -351,6 +356,7 @@ function insertPortraitToMessage(msg, rSource)
             else
                 npc_ident = createDummyPortrait(sourceNode, DB.getValue(sourceNode, "token"))
             end
+            if (npc_ident or "") == "" then return msg end
             DB.addHandler(sourceNode.getNodeName()..".token", "onUpdate", handleTokenChanged)
             _rollNodeMap[rSource.sCreatureNode] = npc_ident
         end
