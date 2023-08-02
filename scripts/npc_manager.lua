@@ -256,7 +256,7 @@ function handleTokenChanged(tokenNode)
 end
 
 function ends_with(str, ending)
-    return ending == "" or str:sub(-#ending) == ending
+    return ending == "" or string.lower(str:sub(-#ending)) == string.lower(ending)
  end
 
 -- CampaignDataManager.setCharPortrait is the only way I have found to generate a portrait set. So a dummy charsheet has to be created
@@ -265,7 +265,6 @@ function createDummyPortrait(npc_node, tokenStr)
         tokenStr = DB.getValue(npc_node, "chat_token_override")
     end
     if ((tokenStr or "") ~= "") and (ends_with(tokenStr, ".jpg") or ends_with(tokenStr, ".png")) then
-        Debug.console(tokenStr)
         local npc_ident = formatDynamicPortraitName(npc_node)
         local dummy_node = DB.createChild("charsheet", npc_ident)
         if not (pcall(CampaignDataManager.setCharPortrait, dummy_node, tokenStr)) then
