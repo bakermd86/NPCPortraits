@@ -16,7 +16,7 @@ local _swStripPrefix = "[GM] "
 local swadeRulesetName = "SavageWorlds"
 
 function onDesktopInit()
-    if User.isLocal() or User.isHost() then
+    if User.isHost() then
 	    ChatManager.unregisterDeliverMessageCallback(LanguageManager.onChatDeliverMessage);
         ChatManager.registerDeliverMessageCallback(insertNpcPortraits)
 	    ChatManager.registerDeliverMessageCallback(LanguageManager.onChatDeliverMessage);
